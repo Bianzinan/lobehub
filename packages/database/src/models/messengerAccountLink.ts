@@ -1,10 +1,10 @@
 import { and, eq, type SQL } from 'drizzle-orm';
 
-import type { LobeAIAccountLinkItem, NewLobeAIAccountLink } from '../schemas';
-import { lobeAIAccountLinks } from '../schemas';
+import type { MessengerAccountLinkItem, NewMessengerAccountLink } from '../schemas';
+import { messengerAccountLinks } from '../schemas';
 import type { LobeChatDatabase } from '../type';
 
-export class LobeAIAccountLinkModel {
+export class MessengerAccountLinkModel {
   private userId: string;
   private db: LobeChatDatabase;
 
@@ -24,26 +24,26 @@ export class LobeAIAccountLinkModel {
    * Returns the resulting link row.
    */
   upsertForPlatform = async (
-    params: Omit<NewLobeAIAccountLink, 'userId' | 'id'>,
-  ): Promise<LobeAIAccountLinkItem> => {
+    params: Omit<NewMessengerAccountLink, 'userId' | 'id'>,
+  ): Promise<MessengerAccountLinkItem> => {
     const existing = await this.findByPlatform(params.platform);
 
     if (existing) {
       const [updated] = await this.db
-        .update(lobeAIAccountLinks)
+        .update(messengerAccountLinks)
         .set({
           activeAgentId: params.activeAgentId ?? existing.activeAgentId,
           platformUserId: params.platformUserId,
           platformUsername: params.platformUsername ?? null,
           updatedAt: new Date(),
         })
-        .where(eq(lobeAIAccountLinks.id, existing.id))
+        .where(eq(messengerAccountLinks.id, existing.id))
         .returning();
       return updated;
     }
 
     const [created] = await this.db
-      .insert(lobeAIAccountLinks)
+      .insert(messengerAccountLinks)
       .values({ ...params, userId: this.userId })
       .returning();
     return created;
@@ -51,31 +51,37 @@ export class LobeAIAccountLinkModel {
 
   delete = async (id: string) => {
     return this.db
-      .delete(lobeAIAccountLinks)
-      .where(and(eq(lobeAIAccountLinks.id, id), eq(lobeAIAccountLinks.userId, this.userId)));
+      .delete(messengerAccountLinks)
+      .where(and(eq(messengerAccountLinks.id, id), eq(messengerAccountLinks.userId, this.userId)));
   };
 
   deleteByPlatform = async (platform: string) => {
     return this.db
-      .delete(lobeAIAccountLinks)
+      .delete(messengerAccountLinks)
       .where(
-        and(eq(lobeAIAccountLinks.userId, this.userId), eq(lobeAIAccountLinks.platform, platform)),
+        and(
+          eq(messengerAccountLinks.userId, this.userId),
+          eq(messengerAccountLinks.platform, platform),
+        ),
       );
   };
 
-  list = async (): Promise<LobeAIAccountLinkItem[]> => {
+  list = async (): Promise<MessengerAccountLinkItem[]> => {
     return this.db
       .select()
-      .from(lobeAIAccountLinks)
-      .where(eq(lobeAIAccountLinks.userId, this.userId));
+      .from(messengerAccountLinks)
+      .where(eq(messengerAccountLinks.userId, this.userId));
   };
 
-  findByPlatform = async (platform: string): Promise<LobeAIAccountLinkItem | undefined> => {
+  findByPlatform = async (platform: string): Promise<MessengerAccountLinkItem | undefined> => {
     const [result] = await this.db
       .select()
-      .from(lobeAIAccountLinks)
+      .from(messengerAccountLinks)
       .where(
-        and(eq(lobeAIAccountLinks.userId, this.userId), eq(lobeAIAccountLinks.platform, platform)),
+        and(
+          eq(messengerAccountLinks.userId, this.userId),
+          eq(messengerAccountLinks.platform, platform),
+        ),
       )
       .limit(1);
     return result;
@@ -85,14 +91,14 @@ export class LobeAIAccountLinkModel {
   setActiveAgent = async (
     platform: string,
     agentId: string | null,
-  ): Promise<LobeAIAccountLinkItem | undefined> => {
+  ): Promise<MessengerAccountLinkItem | undefined> => {
     const conditions: SQL[] = [
-      eq(lobeAIAccountLinks.userId, this.userId),
-      eq(lobeAIAccountLinks.platform, platform),
+      eq(messengerAccountLinks.userId, this.userId),
+      eq(messengerAccountLinks.platform, platform),
     ];
 
     const [updated] = await this.db
-      .update(lobeAIAccountLinks)
+      .update(messengerAccountLinks)
       .set({ activeAgentId: agentId, updatedAt: new Date() })
       .where(and(...conditions))
       .returning();
@@ -111,14 +117,14 @@ export class LobeAIAccountLinkModel {
     db: LobeChatDatabase,
     platform: string,
     platformUserId: string,
-  ): Promise<LobeAIAccountLinkItem | undefined> => {
+  ): Promise<MessengerAccountLinkItem | undefined> => {
     const [result] = await db
       .select()
-      .from(lobeAIAccountLinks)
+      .from(messengerAccountLinks)
       .where(
         and(
-          eq(lobeAIAccountLinks.platform, platform),
-          eq(lobeAIAccountLinks.platformUserId, platformUserId),
+          eq(messengerAccountLinks.platform, platform),
+          eq(messengerAccountLinks.platformUserId, platformUserId),
         ),
       )
       .limit(1);
@@ -131,11 +137,11 @@ export class LobeAIAccountLinkModel {
     db: LobeChatDatabase,
     linkId: string,
     agentId: string | null,
-  ): Promise<LobeAIAccountLinkItem | undefined> => {
+  ): Promise<MessengerAccountLinkItem | undefined> => {
     const [updated] = await db
-      .update(lobeAIAccountLinks)
+      .update(messengerAccountLinks)
       .set({ activeAgentId: agentId, updatedAt: new Date() })
-      .where(eq(lobeAIAccountLinks.id, linkId))
+      .where(eq(messengerAccountLinks.id, linkId))
       .returning();
     return updated;
   };

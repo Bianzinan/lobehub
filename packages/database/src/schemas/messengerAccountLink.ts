@@ -16,8 +16,8 @@ import { users } from './user';
  * itself is shared (credentials in env), and the routing key is the IM
  * account, not the agent.
  */
-export const lobeAIAccountLinks = pgTable(
-  'lobeai_account_links',
+export const messengerAccountLinks = pgTable(
+  'messenger_account_links',
   {
     id: uuid('id').primaryKey().defaultRandom(),
 
@@ -48,14 +48,14 @@ export const lobeAIAccountLinks = pgTable(
   },
   (t) => [
     // One IM account binds to exactly one LobeHub user
-    uniqueIndex('lobeai_account_links_platform_user_unique').on(t.platform, t.platformUserId),
+    uniqueIndex('messenger_account_links_platform_user_unique').on(t.platform, t.platformUserId),
     // One LobeHub user has at most one IM account per platform
-    uniqueIndex('lobeai_account_links_user_platform_unique').on(t.userId, t.platform),
-    index('lobeai_account_links_active_agent_idx').on(t.activeAgentId),
+    uniqueIndex('messenger_account_links_user_platform_unique').on(t.userId, t.platform),
+    index('messenger_account_links_active_agent_idx').on(t.activeAgentId),
   ],
 );
 
-export const insertLobeAIAccountLinkSchema = createInsertSchema(lobeAIAccountLinks);
+export const insertMessengerAccountLinkSchema = createInsertSchema(messengerAccountLinks);
 
-export type NewLobeAIAccountLink = typeof lobeAIAccountLinks.$inferInsert;
-export type LobeAIAccountLinkItem = typeof lobeAIAccountLinks.$inferSelect;
+export type NewMessengerAccountLink = typeof messengerAccountLinks.$inferInsert;
+export type MessengerAccountLinkItem = typeof messengerAccountLinks.$inferSelect;
