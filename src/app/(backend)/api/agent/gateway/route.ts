@@ -131,6 +131,14 @@ export async function GET(request: NextRequest) {
     return new Response('Unauthorized', { status: 401 });
   }
 
+  // Reconnect shared messenger platforms (Telegram setWebhook, etc.). Idempotent
+  // and runs unconditionally — the per-user gateway sync below is a separate
+  // concern, and we want messenger bots online whether or not MESSAGE_GATEWAY
+  // is enabled. Failures are logged inside ensureConnected so we never block
+  // per-user gateway work.
+  const { getMessengerRouter } = await import('@/server/services/messenger');
+  await getMessengerRouter().ensureConnected();
+
   // When the external message gateway is enabled, sync connections via gateway.
   if (process.env.MESSAGE_GATEWAY_URL && process.env.MESSAGE_GATEWAY_SERVICE_TOKEN) {
     const { GatewayService } = await import('@/server/services/gateway');
