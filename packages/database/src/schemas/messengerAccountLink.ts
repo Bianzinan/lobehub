@@ -27,6 +27,20 @@ export const messengerAccountLinks = pgTable(
 
     platform: varchar('platform', { length: 50 }).notNull(),
 
+    /**
+     * Platform-opaque tenant identifier — the same `(platform, platform_user_id)`
+     * may exist under different tenants and must not collide:
+     *
+     * - **Slack**: workspace install → `team_id`; Enterprise Grid org install
+     *   → `enterprise_id` (matches `messenger_installations.tenant_id`)
+     * - **Discord**: `guild_id`
+     * - **Feishu / Lark**: `tenant_key`
+     * - **MS Teams**: tenantId
+     * - **Telegram** (and any global-token bot): empty string `''` — a single
+     *   bot serves every chat, so there's nothing to scope by
+     */
+    tenantId: varchar('tenant_id', { length: 255 }).default('').notNull(),
+
     /** Platform-side user ID (Telegram user id, Slack user id, etc.) */
     platformUserId: varchar('platform_user_id', { length: 255 }).notNull(),
 
@@ -47,10 +61,23 @@ export const messengerAccountLinks = pgTable(
     ...timestamps,
   },
   (t) => [
-    // One IM account binds to exactly one LobeHub user
-    uniqueIndex('messenger_account_links_platform_user_unique').on(t.platform, t.platformUserId),
-    // One LobeHub user has at most one IM account per platform
-    uniqueIndex('messenger_account_links_user_platform_unique').on(t.userId, t.platform),
+    // One IM account per (platform, tenant) binds to exactly one LobeHub user.
+    // The tenant column lets the same Slack user id under two workspaces
+    // bind to different LobeHub users — without it, the second workspace
+    // install would clash on the legacy 2-column index.
+    uniqueIndex('messenger_account_links_platform_tenant_user_unique').on(
+      t.platform,
+      t.tenantId,
+      t.platformUserId,
+    ),
+    // One LobeHub user has at most one IM account per (platform, tenant) —
+    // i.e. one user can be linked into Slack workspace A AND workspace B
+    // simultaneously, but only one account per workspace.
+    uniqueIndex('messenger_account_links_user_platform_tenant_unique').on(
+      t.userId,
+      t.platform,
+      t.tenantId,
+    ),
     index('messenger_account_links_active_agent_idx').on(t.activeAgentId),
   ],
 );

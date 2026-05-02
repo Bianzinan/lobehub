@@ -714,6 +714,13 @@
       "when": 1777656666510,
       "tag": "0101_add_messenger_installations",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1777659783540,
+      "tag": "0102_messenger_account_links_tenant_id",
+      "breakpoints": true
     }
   ],
   "version": "6"

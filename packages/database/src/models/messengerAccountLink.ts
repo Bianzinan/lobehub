@@ -4,6 +4,13 @@ import type { MessengerAccountLinkItem, NewMessengerAccountLink } from '../schem
 import { messengerAccountLinks } from '../schemas';
 import type { LobeChatDatabase } from '../type';
 
+/**
+ * Tenant id for global-token platforms (Telegram today, Discord later) —
+ * they have one bot serving every chat, so there's no scoping. Per-tenant
+ * platforms (Slack, future Feishu / MS Teams) pass the actual tenant id.
+ */
+const GLOBAL_TENANT_ID = '';
+
 export class MessengerAccountLinkModel {
   private userId: string;
   private db: LobeChatDatabase;
@@ -16,17 +23,23 @@ export class MessengerAccountLinkModel {
   // --------------- User-scoped CRUD ---------------
 
   /**
-   * Insert or update the user's link for `(platform)`. Used by the verify-im
-   * confirm flow — if the user re-links the same Telegram account they keep
-   * the same row; if they link a different IM account on the same platform
-   * the existing row is overwritten (one IM account per `(user, platform)`).
+   * Insert or update the user's link for `(platform, tenantId)`. Used by the
+   * verify-im confirm flow — if the user re-links the same Telegram account
+   * they keep the same row; if they link a different IM account in the same
+   * `(platform, tenant)` the existing row is overwritten (one IM account per
+   * `(user, platform, tenant)`).
+   *
+   * For Telegram (and any global-bot platform), `tenantId` is omitted /
+   * defaults to the empty string, which collapses the new 3-column index
+   * back to the original `(user, platform)` semantic.
    *
    * Returns the resulting link row.
    */
   upsertForPlatform = async (
     params: Omit<NewMessengerAccountLink, 'userId' | 'id'>,
   ): Promise<MessengerAccountLinkItem> => {
-    const existing = await this.findByPlatform(params.platform);
+    const tenantId = params.tenantId ?? GLOBAL_TENANT_ID;
+    const existing = await this.findByPlatform(params.platform, tenantId);
 
     if (existing) {
       const [updated] = await this.db
@@ -44,7 +57,7 @@ export class MessengerAccountLinkModel {
 
     const [created] = await this.db
       .insert(messengerAccountLinks)
-      .values({ ...params, userId: this.userId })
+      .values({ ...params, tenantId, userId: this.userId })
       .returning();
     return created;
   };
@@ -55,15 +68,15 @@ export class MessengerAccountLinkModel {
       .where(and(eq(messengerAccountLinks.id, id), eq(messengerAccountLinks.userId, this.userId)));
   };
 
-  deleteByPlatform = async (platform: string) => {
-    return this.db
-      .delete(messengerAccountLinks)
-      .where(
-        and(
-          eq(messengerAccountLinks.userId, this.userId),
-          eq(messengerAccountLinks.platform, platform),
-        ),
-      );
+  deleteByPlatform = async (platform: string, tenantId?: string) => {
+    const conditions: SQL[] = [
+      eq(messengerAccountLinks.userId, this.userId),
+      eq(messengerAccountLinks.platform, platform),
+    ];
+    if (tenantId !== undefined) {
+      conditions.push(eq(messengerAccountLinks.tenantId, tenantId));
+    }
+    return this.db.delete(messengerAccountLinks).where(and(...conditions));
   };
 
   list = async (): Promise<MessengerAccountLinkItem[]> => {
@@ -73,16 +86,28 @@ export class MessengerAccountLinkModel {
       .where(eq(messengerAccountLinks.userId, this.userId));
   };
 
-  findByPlatform = async (platform: string): Promise<MessengerAccountLinkItem | undefined> => {
+  /**
+   * Find the user's link for a given platform. Without `tenantId` returns the
+   * single link if there is exactly one, or undefined otherwise — useful for
+   * Telegram where the user only ever has one. With `tenantId` returns the
+   * specific row (Slack workspace A vs B).
+   */
+  findByPlatform = async (
+    platform: string,
+    tenantId?: string,
+  ): Promise<MessengerAccountLinkItem | undefined> => {
+    const conditions: SQL[] = [
+      eq(messengerAccountLinks.userId, this.userId),
+      eq(messengerAccountLinks.platform, platform),
+    ];
+    if (tenantId !== undefined) {
+      conditions.push(eq(messengerAccountLinks.tenantId, tenantId));
+    }
+
     const [result] = await this.db
       .select()
       .from(messengerAccountLinks)
-      .where(
-        and(
-          eq(messengerAccountLinks.userId, this.userId),
-          eq(messengerAccountLinks.platform, platform),
-        ),
-      )
+      .where(and(...conditions))
       .limit(1);
     return result;
   };
@@ -91,11 +116,15 @@ export class MessengerAccountLinkModel {
   setActiveAgent = async (
     platform: string,
     agentId: string | null,
+    tenantId?: string,
   ): Promise<MessengerAccountLinkItem | undefined> => {
     const conditions: SQL[] = [
       eq(messengerAccountLinks.userId, this.userId),
       eq(messengerAccountLinks.platform, platform),
     ];
+    if (tenantId !== undefined) {
+      conditions.push(eq(messengerAccountLinks.tenantId, tenantId));
+    }
 
     const [updated] = await this.db
       .update(messengerAccountLinks)
@@ -112,11 +141,16 @@ export class MessengerAccountLinkModel {
    * Resolve the link row for an inbound IM message. Returns the row regardless
    * of whether `activeAgentId` is set — the router decides how to handle the
    * "no active agent" case.
+   *
+   * `tenantId` defaults to the empty string (global-bot semantics) so existing
+   * Telegram-only callers keep working without code changes; Slack callers in
+   * the multi-tenant router pass the resolved `team_id` / `enterprise_id`.
    */
   static findByPlatformUser = async (
     db: LobeChatDatabase,
     platform: string,
     platformUserId: string,
+    tenantId: string = GLOBAL_TENANT_ID,
   ): Promise<MessengerAccountLinkItem | undefined> => {
     const [result] = await db
       .select()
@@ -124,6 +158,7 @@ export class MessengerAccountLinkModel {
       .where(
         and(
           eq(messengerAccountLinks.platform, platform),
+          eq(messengerAccountLinks.tenantId, tenantId),
           eq(messengerAccountLinks.platformUserId, platformUserId),
         ),
       )
