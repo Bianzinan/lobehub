@@ -15,6 +15,10 @@ import {
   AgentManagementManifest,
 } from '@lobechat/builtin-tool-agent-management/client';
 import {
+  AgentMarketplaceInspectors,
+  AgentMarketplaceManifest,
+} from '@lobechat/builtin-tool-agent-marketplace/client';
+import {
   ClaudeCodeIdentifier,
   ClaudeCodeInspectors,
 } from '@lobechat/builtin-tool-claude-code/client';
@@ -73,6 +77,10 @@ const BuiltinToolInspectors: Record<string, Record<string, BuiltinInspector>> = 
   [AgentBuilderManifest.identifier]: AgentBuilderInspectors as Record<string, BuiltinInspector>,
   [AgentDocumentsManifest.identifier]: AgentDocumentsInspectors as Record<string, BuiltinInspector>,
   [AgentManagementManifest.identifier]: AgentManagementInspectors as Record<
+    string,
+    BuiltinInspector
+  >,
+  [AgentMarketplaceManifest.identifier]: AgentMarketplaceInspectors as Record<
     string,
     BuiltinInspector
   >,
